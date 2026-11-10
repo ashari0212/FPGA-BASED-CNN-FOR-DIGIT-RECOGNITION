@@ -4,7 +4,7 @@
 <!-- Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.                   -->
 <!-- Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.   -->
 
-<Project Product="Vivado" Version="7" Minor="71" Path="D:/ash/bitnew/CNN_Accelerator_Clean/vivado_workspace/LeNet_Accelerator.xpr">
+<Project Product="Vivado" Version="7" Minor="71" Path="./vivado/LeNet_Accelerator.xpr">
   <DefaultLaunch Dir="$PRUNDIR"/>
   <Configuration>
     <Option Name="Id" Val="fa8474cef5b54e0e8c7c4f76865d1bce"/>
