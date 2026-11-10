@@ -1,8 +1,0 @@
-Time resolution is 1 ps
-WARNING: Too many words specified in data file out_fc2_32.hex
-WARNING: Too many words specified in data file out_fc2_32.hex
-====================================
- CNN Prediction Result 
- Predicted Digit = 6
-====================================
-$finish called at time : 438753700 ps : File "D:/ash/bitnew/CNN_Accelerator_Clean/vivado_workspace/LeNet_Accelerator.srcs/sim_1/imports/tb/cnn_tb.v" Line 139

@@ -1,22 +1,9 @@
-# Build and tool output
-/build/
-/export/
-/logs/
-*.log
-*.jou
-*.str
-*.wdb
-*.vcd
-*.o
-*.d
-*.lock
-*.bin
-*.pdi
-.vitisWorkspace.json
-_ide/logs/
-_ide/.wsdata/
-
-# Python
+# Python environments and generated files
+.venv/
+venv/
+env/
+**/.venv/
+**/venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -25,12 +12,28 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Virtual environments (tracked files remain tracked)
-.venv/
-venv/
-env/
+# Vivado generated build products
+**/*.cache/
+**/*.gen/
+**/*.runs/
+**/*.sim/
+**/*.hw/
+**/.Xil/
+**/*.ip_user_files/bd/
+**/*.ip_user_files/ipstatic/
+*.dcp
+*.jou
+*.log
+*.str
+*.wdb
+*.vcd
+*.lock
 
-# Editor and OS files
+# Build and editor files
+/build/
+/dist/
+/export/
+/logs/
 .DS_Store
 .vscode/
 .idea/

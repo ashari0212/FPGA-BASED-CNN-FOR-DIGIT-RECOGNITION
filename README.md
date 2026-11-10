@@ -1,115 +1,148 @@
-# FPGA-Based CNN for Digit Recognition
+<div align="center">
 
-An FPGA-accelerated handwritten digit recognition project based on a LeNet-style Convolutional Neural Network (CNN), trained with the MNIST dataset and intended for deployment on a Xilinx Zynq-7000 ZedBoard.
+# FPGA-Based CNN for Handwritten Digit Recognition
 
-The project combines Python-based model training and image preparation with a modular Verilog CNN accelerator. The project report describes a live Python-to-FPGA UART input path and hardware inference; the repository's checked-in RTL, constraints, and software should still be checked together before treating every reported integration feature as reproducible from this repository.
+**A LeNet-inspired CNN accelerator implemented in Verilog for the Xilinx Zynq-7000 ZedBoard.**
 
-## Project overview
+[![HDL](https://img.shields.io/badge/HDL-Verilog-blue)](https://en.wikipedia.org/wiki/Verilog)
+[![Platform](https://img.shields.io/badge/FPGA-Zynq--7000-orange)](https://www.amd.com/)
+[![Dataset](https://img.shields.io/badge/Dataset-MNIST-brightgreen)](http://yann.lecun.com/exdb/mnist/)
+[![Tool](https://img.shields.io/badge/Tool-Vivado%202025.2-red)](https://www.amd.com/en/products/software/adaptive-socs-and-fpgas/vivado.html)
 
-The system is designed to classify handwritten digits (0–9) from 28 × 28 grayscale images.
+</div>
 
-The workflow described in the project report is:
+---
 
-1. Train a LeNet-style CNN using the MNIST dataset with Python, TensorFlow, and Keras.
-2. Convert trained floating-point parameters into signed 8-bit integer (INT8) values.
-3. Export layer parameters as hexadecimal memory initialization files, packing four 8-bit values into each 32-bit word.
-4. Implement the CNN computation in Verilog on the Zynq-7000 programmable logic.
-5. Capture a handwritten digit in a Python/Tkinter interface and send image data to the FPGA over a 115200-baud UART link.
-6. Run inference on the FPGA and display the predicted digit on the host computer; the report also describes displaying the result on the board LEDs.
+## Overview
+
+This project explores handwritten digit recognition using a convolutional neural network (CNN) mapped to FPGA programmable logic. The software workflow uses Python and the MNIST dataset; the hardware design is written in Verilog and targets a Zynq-7000 ZedBoard.
+
+The repository contains the RTL accelerator, a Python drawing utility, simulation assets, trained weight files, and a Vivado project. The report describes a host-to-board UART workflow, but the complete UART inference path is not yet verified in the checked-in source. See **[Implementation status](#implementation-status)** before attempting a live hardware demonstration.
+
+## At a glance
+
+| Area | Project details |
+|---|---|
+| Task | Handwritten digit classification (0–9) |
+| Dataset | MNIST, 28 × 28 grayscale images |
+| Model | LeNet-inspired, five-stage CNN pipeline |
+| Hardware | Xilinx Zynq-7000 ZedBoard |
+| RTL | Verilog |
+| Arithmetic | Signed INT8 weights and activations |
+| Host utility | Python / Tkinter |
+| FPGA tools | AMD Xilinx Vivado |
 
 ## Architecture
 
-### Neural network pipeline
+The reported hardware pipeline consists of three convolution stages and two fully connected stages.
 
-The hardware pipeline is organized into five stages:
+```mermaid
+flowchart LR
+    A["28 × 28 digit image"] --> B["Preprocessing"]
+    B --> C["Conv 1 + ReLU + Pool"]
+    C --> D["Conv 2 + ReLU + Pool"]
+    D --> E["Conv 3"]
+    E --> F["Fully Connected 1"]
+    F --> G["Fully Connected 2"]
+    G --> H["Digit class 0–9"]
+```
 
-| Stage | Operation | Purpose |
-|---|---|---|
-| 1 | Convolution + ReLU + Max Pooling | Extract low-level image features |
-| 2 | Convolution + ReLU + Max Pooling | Extract higher-level features |
-| 3 | Convolution | Combine learned feature maps |
-| 4 | Fully Connected (FC1) | Build classification features |
-| 5 | Fully Connected (FC2) | Produce scores for the ten digit classes |
+### FPGA datapath
 
-The software model is trained on the MNIST dataset, which contains 70,000 grayscale images of handwritten digits. The report gives an approximate software-model accuracy of 98%; this is a software result and should not be interpreted as the measured accuracy of the FPGA implementation.
+The project report describes these implementation choices:
 
-### FPGA accelerator
+- **Eight parallel processing elements (PEs)** for concurrent computation.
+- **5 × 5 convolution kernels**, with each PE described as performing a 25-term multiply-accumulate operation.
+- A **47-state finite-state machine (FSM)** to sequence CNN operations.
+- **INT8 fixed-point arithmetic** with wider accumulation and requantization.
+- Parameterized on-chip BRAM for weights, input data, and intermediate feature maps.
+- A reported **50 MHz** fabric clock target.
 
-The project report describes the following hardware architecture:
+These are report-derived design details, not independently measured results in this repository. Confirm them against the current RTL and Vivado reports before citing them as achieved hardware metrics.
 
-- **Target platform:** Xilinx Zynq-7000 SoC on a ZedBoard.
-- **Processing elements:** Eight parallel processing elements (PEs).
-- **MAC computation:** Each PE is described as performing a 25-way multiply-accumulate operation for a 5 × 5 convolution kernel.
-- **Controller:** A 47-state finite-state machine (FSM) coordinates convolution, pooling, fully connected operations, and final class selection.
-- **Arithmetic:** Signed INT8 weights and activations, with wider accumulators and requantization between stages.
-- **Memory:** Parameterized Block RAM (BRAM) for weights, input pixels, and intermediate feature maps. The report gives an approximate BRAM footprint of 830 Kbits.
-- **Clock:** The report describes a 50 MHz fabric clock constraint.
+## Repository layout
 
-These figures are taken from the project report. Confirm them against the current Vivado synthesis and implementation reports before using them as measured implementation results.
+The source tree is arranged by responsibility so the main project files are easy to find:
 
-### Host-to-FPGA communication
+```text
+.
+├── rtl/                 # Verilog accelerator and hardware modules
+├── software/            # Python drawing and helper utilities
+├── tb/                  # Verilog testbench
+├── test_inputs/         # Sample input, bitstream and validation utility
+├── weights/             # Quantized layer weights (.hex)
+├── vivado/              # Vivado project, block design and constraints
+│   ├── LeNet_Accelerator.xpr
+│   ├── LeNet_Accelerator.srcs/
+│   ├── LeNet_Accelerator.ip_user_files/
+│   └── scripts/         # Project restoration Tcl scripts
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
 
-The project report describes a UART receiver operating at **115200 baud**. A Python/Tkinter drawing application preprocesses the input image and streams pixel bytes over a micro-USB serial connection. The FPGA-side receiver packs incoming bytes into 32-bit words and writes them to the input image memory, which is described as a true dual-port BRAM so the CNN controller can read the image while the input interface writes it.
+Vivado-generated caches, run directories, logs, and the local Python virtual environment are intentionally excluded. Vivado can regenerate its build outputs.
 
-The report also refers to an AXI GPIO bridge between the Zynq processing system and programmable logic. These are distinct interfaces in the described system: UART is the host-PC serial link, while AXI GPIO is a PS-to-PL control/data interface. Verify the exact implemented path in the block design and RTL before assuming both are active in the checked-in build.
+## Getting started
 
-## Software and hardware tools
+### 1. Clone the repository
 
-| Component | Purpose |
-|---|---|
-| Python 3 | Training utilities, parameter export, and host GUI |
-| TensorFlow / Keras | MNIST model training |
-| NumPy | Numerical and array processing |
-| Tkinter | Handwritten digit drawing interface |
-| PySerial | UART communication from the host, as described in the report |
-| Verilog HDL | CNN accelerator and supporting hardware modules |
-| Xilinx Vivado | RTL simulation, synthesis, implementation, and bitstream generation |
-| Zynq-7000 ZedBoard | Target FPGA development platform |
+```bash
+git clone https://github.com/hari1247/FPGA-BASED-CNN-FOR-DIGIT-RECOGNITION.git
+cd FPGA-BASED-CNN-FOR-DIGIT-RECOGNITION
+```
 
-Install the Python dependencies listed in `requirements.txt`.
+### 2. Set up Python
 
 ```bash
 python -m venv .venv
+```
+
+Activate the environment:
+
+```bash
+# macOS / Linux
 source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+Install the packages listed in `requirements.txt`:
+
+```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-On Windows, activate the environment with:
-
-```powershell
-.venv\Scripts\activate
-```
-
-## Repository contents
-
-The repository includes the following main areas (check the current tree for the exact files and paths):
-
-- `rtl/` — Verilog CNN, processing, memory, and supporting modules.
-- `tb/` — simulation testbench and verification assets.
-- `software/` — Python drawing/preprocessing and related utilities.
-- `test_inputs/` — sample input and memory initialization data.
-- Vivado project and block-design files — FPGA project configuration and integration sources.
-- `requirements.txt` — Python package dependencies.
-
-## Running the Python drawing utility
-
-From the repository root, create and activate a virtual environment, install the dependencies, and run:
+Run the drawing utility:
 
 ```bash
 python software/main1.py
 ```
 
-The checked-in GUI utility can prepare a digit image for the simulation flow. Confirm the current GUI script and its output format before using it as a live UART client: the previously reviewed repository version generated a HEX input file, and that is not by itself proof of an operational serial transfer to the FPGA.
+Tkinter may need to be installed separately on some Linux distributions. The Python utility and simulation input-file workflow should not be mistaken for a verified live UART transfer to the FPGA.
 
-## Running the Vivado simulation
+### 3. Open the Vivado project
 
-1. Open the Vivado project using a compatible Vivado release. The checked-in project metadata previously identified Vivado 2025.2.
-2. Confirm that the simulation top is `cnn_tb`.
-3. Check that every HEX initialization file referenced by the testbench exists in the simulation working directory or update the file paths.
-4. Run behavioral simulation and inspect the transcript and output values.
+1. Launch a compatible AMD Xilinx Vivado version (the project metadata identifies **2025.2**).
+2. Open `vivado/LeNet_Accelerator.xpr`.
+3. Confirm the target part and board are set for the Zynq-7000 ZedBoard.
+4. Allow Vivado to regenerate missing IP output products and generated directories.
+5. Review the source sets, block design, constraints, and simulation paths before running implementation.
 
-The testbench previously reviewed expects these layer weight files:
+The project targets device part `xc7z020clg484-1`. Board and timing settings should be verified against the physical board and current constraints.
+
+### 4. Run the RTL simulation
+
+The testbench is located at `tb/cnn_tb.v`. Before simulation:
+
+- Confirm the testbench is selected as the simulation top.
+- Check that all layer weight files in `weights/` are available to the simulator.
+- Confirm the expected input image file is `test_inputs/in_32.hex`.
+- Check the simulation working directory and any file paths used by `$readmemh`.
+
+The expected layer weight files are:
 
 - `out_conv1_32.hex`
 - `out_conv2_32.hex`
@@ -117,47 +150,38 @@ The testbench previously reviewed expects these layer weight files:
 - `out_fc1_32.hex`
 - `out_fc2_32.hex`
 
-It also loads the packed input file:
+## Reported results and known issues
 
-- `test_inputs/in_32.hex`
+The project report states that the software model achieved approximately **98% accuracy** on its evaluation workflow. This is a report-reported software result and must not be presented as measured FPGA accuracy.
 
-The exact file names and memory paths should be confirmed against the current testbench and parameter-export scripts.
+The report also records hardware-side issues that need validation and correction:
 
-## Reported results and known limitations
+| Case | Issue described in the report |
+|---|---|
+| Digits 1–8 | Variable hardware accuracy, attributed partly to quantization and preprocessing differences |
+| Digit 0 | A polling condition can mistake a valid zero prediction for “not ready” |
+| Digit 9 | A final-class boundary condition can omit class index 9 from the max-finder |
 
-The project report describes software testing with handwritten digits and a hardware implementation on the Zynq-7000. It also documents important issues that should remain visible when evaluating the project:
+Do not describe all ten hardware classes as reliably working until the complete board-level test has been repeated.
 
-| Test case | Reported behavior | Issue described in the report |
-|---|---|---|
-| Digits 1–8 | Predictions returned, but hardware accuracy varied | INT8 quantization effects and preprocessing differences |
-| Digit 0 | Hardware execution can hang | The software polling logic treats a zero-valued prediction as “not ready” |
-| Digit 9 | Incorrect or null result in hardware mode | The final class can be skipped by a boundary condition in the Softmax/max-finder search |
+## Implementation status
 
-The report therefore does **not** establish consistent, correct hardware classification for all ten digits. The digit-0 polling condition and digit-9 class-index boundary need to be corrected and retested. The report also identifies a need to align software preprocessing and hardware fixed-point scaling.
+- **RTL and simulation assets:** present in the repository.
+- **Vivado project:** included; generated build products are intentionally not versioned.
+- **Python drawing utility:** included.
+- **UART host-to-FPGA inference:** described in the report, but not yet established as a complete, reproducible path by the checked-in host and RTL sources.
+- **Hardware performance:** requires fresh synthesis, implementation, timing, and board-level measurements.
 
-### Validation checklist before FPGA deployment
+The project restoration Tcl files are retained under `vivado/scripts/`. They were generated on another machine and may contain machine-specific source paths; review or regenerate those paths before using the scripts on a different computer.
 
-- Verify that the UART receiver, host-side PySerial sender, and top-level wrapper are present and connected in the checked-in source.
-- Confirm that the block design, RTL wrapper ports, and XDC pin assignments refer to the same hardware top.
-- Confirm the actual board part and clock constraints; the report specifies a ZedBoard and 50 MHz.
-- Check BRAM initialization file depth, word packing, signedness, and address mapping.
-- Resolve any simulator warnings about HEX files containing more words than the target memory expects.
-- Re-run synthesis and implementation, then review timing slack and resource utilization.
-- Test all ten digit classes on hardware, including the zero-result polling case and the final digit-9 comparator boundary.
-- Measure hardware accuracy, latency, and power separately before making performance comparisons.
+## Suggested next steps
 
-## Current project status
-
-This README distinguishes between the architecture and results described in the project report and what has been verified in the checked-in repository. The earlier repository review found that the GUI's HEX-file generation, the simulation testbench's packed-word format, and the documented socket/communication helper did not yet demonstrate a complete, verified PC-to-FPGA UART inference path. The report describes a more complete UART-based system, but the source, Vivado block design, constraints, and board-level behavior must be reconciled before claiming that the report's full live workflow is reproducible from this repository.
-
-## Future improvements
-
-- Fix the digit-0 completion/polling condition and digit-9 output-index boundary.
-- Align Python preprocessing and RTL fixed-point scaling and rounding.
-- Verify the UART-to-BRAM path and end-to-end host/FPGA integration.
-- Add repeatable test vectors and automated comparisons between Python and RTL predictions.
-- Publish measured FPGA accuracy, latency, timing, and resource utilization.
+1. Complete and verify the host-to-FPGA data-transfer path.
+2. Fix and regression-test the digit-0 completion handling and digit-9 class selection.
+3. Match Python preprocessing, signedness, scaling, and rounding to the RTL datapath.
+4. Add repeatable Python-versus-RTL test vectors for all ten classes.
+5. Publish measured FPGA resource utilization, timing, latency, power, and hardware accuracy.
 
 ## License
 
-No license information is currently specified in the repository. Add a license file if you intend others to reuse, modify, or distribute the project.
+No license is currently specified. Add a license before inviting reuse or redistribution.
