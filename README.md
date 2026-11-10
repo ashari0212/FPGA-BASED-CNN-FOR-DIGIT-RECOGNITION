@@ -5,7 +5,7 @@
 **A LeNet-inspired CNN accelerator implemented in Verilog for the Xilinx Zynq-7000 ZedBoard.**
 
 [![HDL](https://img.shields.io/badge/HDL-Verilog-blue)](https://en.wikipedia.org/wiki/Verilog)
-[![Platform](https://img.shields.io/badge/FPGA-Zynq--7000-orange)](https://www AMD.com/)
+[![Platform](https://img.shields.io/badge/FPGA-Zynq--7000-orange)](https://www.amd.com/)
 [![Dataset](https://img.shields.io/badge/Dataset-MNIST-brightgreen)](http://yann.lecun.com/exdb/mnist/)
 [![Tool](https://img.shields.io/badge/Tool-Vivado%202025.2-red)](https://www.amd.com/en/products/software/adaptive-socs-and-fpgas/vivado.html)
 
