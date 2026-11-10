@@ -110,8 +110,8 @@ module cnn(clk,
   reg [4:0] bits_select;
   reg [1:0] bits_select_temp;
 
-  reg [7:0] soft_max_indx;
-  reg [31:0] soft_max_temp;
+  wire [7:0] soft_max_indx;
+  wire [31:0] soft_max_temp;
 
   // FSM:
   //==================== Layer 1 =======================================================
@@ -237,7 +237,7 @@ module cnn(clk,
       L5_RD_BRTCH2:  n_state = (counter == 21) ? L5_EXE : L5_RD_BRTCH2;
       L5_EXE:        n_state = (counter == 2)  ? L5_SUM : L5_EXE;
       L5_SUM:        n_state = L5_OUT;
-      L5_OUT:        n_state = (psum_temp_indx == 46) ? DONE : L5_RD_BRTCH1; // mode = 1: number, mode = 0: letter
+      L5_OUT:        n_state = (psum_temp_indx == 8) ? DONE : L5_RD_BRTCH1; // Ten classes: compare pairs 0/1 through 8/9 // mode = 1: number, mode = 0: letter
       DONE:          n_state = (ready) ? IDLE : DONE;
 
       default:       n_state = IDLE;
@@ -762,31 +762,23 @@ module cnn(clk,
   assign pe_out_sum_a_quan = ((|pe_out_sum_a_relu[31:15]) ? 255 : ((&pe_out_sum_a_relu[14:7]) ? pe_out_sum_a_relu[14:7] : (pe_out_sum_a_relu[14:7] + pe_out_sum_a_relu[6])));                     
   // ===================================================================================================================================================================
   
-  // ===================================================== softmax ====================================================================================
-  always @(posedge clk or posedge rst) begin
-    if(rst) soft_max_indx <= 0;
-    else begin
-      if(state == L5_OUT) begin
-        if(psum_temp_indx == 46) soft_max_indx <= (soft_max_temp > pe_out_sum_a_relu) ? soft_max_indx : psum_temp_indx;
-        else soft_max_indx <= (soft_max_temp > pe_out_sum_a_relu) ? ((soft_max_temp > pe_out_sum_b_relu) ? soft_max_indx : psum_temp_indx + 1)
-                                                                  : ((pe_out_sum_a_relu > pe_out_sum_b_relu) ? psum_temp_indx : psum_temp_indx + 1);
-      end
-    end
-  end
+  // ===================================================== argmax (10 MNIST classes) =================================
+  // FC2 produces two class scores per L5_OUT cycle. Compare BOTH scores on
+  // every cycle, including the final pair (classes 8 and 9). Keeping the
+  // comparison in a small module also makes the edge cases easy to unit-test.
+  cnn_argmax10 class_argmax (
+    .clk(clk),
+    .rst(rst),
+    .clear(state == IDLE),
+    .valid(state == L5_OUT),
+    .pair_base_index(psum_temp_indx),
+    .score_a(pe_out_sum_a_relu),
+    .score_b(pe_out_sum_b_relu),
+    .best_index(soft_max_indx),
+    .best_score(soft_max_temp)
+  );
+  // ===============================================================================================================
 
-  always @(posedge clk or posedge rst) begin
-    if(rst) soft_max_temp <= 0;
-    else begin
-      if(state == IDLE) soft_max_temp <= 0;
-      else if(state == L5_OUT) begin
-        if(psum_temp_indx == 46) soft_max_temp <= (soft_max_temp > pe_out_sum_a_relu) ? soft_max_temp : pe_out_sum_a_relu;
-        else soft_max_temp <= (soft_max_temp > pe_out_sum_a_relu) ? ((soft_max_temp > pe_out_sum_b_relu) ? soft_max_temp : pe_out_sum_b_relu)
-                                                                  : ((pe_out_sum_a_relu > pe_out_sum_b_relu) ? pe_out_sum_a_relu : pe_out_sum_b_relu);
-      end
-    end
-  end
-  // ==========================================================================================================================================================
-  
   /*        
     o o o o o o o o   0  1  2  3  4  5  6  7
     o o o o o o o o   8  9 10 11 12 13 14 15 
@@ -956,4 +948,38 @@ module cnn(clk,
   // ============================================================================================
 endmodule
 
+// Running argmax for the ten MNIST output classes. Scores are non-negative
+// ReLU outputs. Strict '>' against the previous best preserves the first
+// class on ties, matching conventional argmax behavior.
+module cnn_argmax10(
+    input wire clk,
+    input wire rst,
+    input wire clear,
+    input wire valid,
+    input wire [6:0] pair_base_index,
+    input wire [31:0] score_a,
+    input wire [31:0] score_b,
+    output reg [7:0] best_index,
+    output reg [31:0] best_score
+);
+    wire [31:0] pair_best_score;
+    wire [7:0] pair_best_index;
+
+    assign pair_best_score = (score_a >= score_b) ? score_a : score_b;
+    assign pair_best_index = (score_a >= score_b)
+                           ? {1'b0, pair_base_index}
+                           : ({1'b0, pair_base_index} + 8'd1);
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            best_index <= 8'd0;
+            best_score <= 32'd0;
+        end else if (clear) begin
+            best_index <= 8'd0;
+            best_score <= 32'd0;
+        end else if (valid && (pair_best_score > best_score)) begin
+            best_index <= pair_best_index;
+            best_score <= pair_best_score;
+        end
+    end
 endmodule
