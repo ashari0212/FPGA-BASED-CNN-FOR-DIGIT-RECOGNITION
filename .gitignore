@@ -1,21 +1,36 @@
-# Ignore build output directory
-/build
-/export
-
-# Ignore object files and dependent files
-.o
-.d
-
-#Ignore logs folder and log files
-/logs
-.log
-
-#Ignore lock files
-.lock
-
-.bin
-.pdi
+# Build and tool output
+/build/
+/export/
+/logs/
+*.log
+*.jou
+*.str
+*.wdb
+*.vcd
+*.o
+*.d
+*.lock
+*.bin
+*.pdi
 .vitisWorkspace.json
+_ide/logs/
+_ide/.wsdata/
 
-_ide/logs
-_ide/.wsdata
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments (tracked files remain tracked)
+.venv/
+venv/
+env/
+
+# Editor and OS files
+.DS_Store
+.vscode/
+.idea/
